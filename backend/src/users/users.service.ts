@@ -2,6 +2,7 @@ import { Injectable, ConflictException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { User, UserDocument } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 
@@ -16,9 +17,12 @@ export class UsersService {
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+
     const user = new this.userModel({
       ...dto,
       password: hashedPassword,
+      verificationToken,
     });
 
     return user.save();
@@ -30,6 +34,18 @@ export class UsersService {
 
   async findById(id: string): Promise<UserDocument | null> {
     return this.userModel.findById(id);
+  }
+
+  async findByVerificationToken(token: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ verificationToken: token });
+  }
+
+  async verifyEmail(token: string): Promise<UserDocument | null> {
+    return this.userModel.findOneAndUpdate(
+      { verificationToken: token },
+      { isEmailVerified: true, verificationToken: null },
+      { new: true },
+    );
   }
 
   async comparePassword(password: string, hash: string): Promise<boolean> {

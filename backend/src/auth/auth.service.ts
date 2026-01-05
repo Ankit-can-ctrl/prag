@@ -1,6 +1,7 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
+import { EmailService } from '../email/email.service';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 
@@ -9,15 +10,25 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
+    private emailService: EmailService,
   ) {}
 
   async signup(dto: SignupDto) {
     const user = await this.usersService.create(dto);
+
+    // Send verification email
+    try {
+      await this.emailService.sendVerificationEmail(user.email, user.verificationToken);
+    } catch (error) {
+      console.log('Email sending failed:', error.message);
+    }
+
     const token = this.generateToken(user._id.toString(), user.email);
 
     return {
-      user: { id: user._id, name: user.name, email: user.email },
+      user: { id: user._id, name: user.name, email: user.email, isEmailVerified: false },
       accessToken: token,
+      message: 'Please check your email to verify your account',
     };
   }
 
@@ -35,9 +46,18 @@ export class AuthService {
     const token = this.generateToken(user._id.toString(), user.email);
 
     return {
-      user: { id: user._id, name: user.name, email: user.email },
+      user: { id: user._id, name: user.name, email: user.email, isEmailVerified: user.isEmailVerified },
       accessToken: token,
     };
+  }
+
+  async verifyEmail(token: string) {
+    const user = await this.usersService.verifyEmail(token);
+    if (!user) {
+      throw new BadRequestException('Invalid or expired verification token');
+    }
+
+    return { message: 'Email verified successfully' };
   }
 
   async getProfile(userId: string) {
@@ -45,7 +65,7 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
-    return { id: user._id, name: user.name, email: user.email };
+    return { id: user._id, name: user.name, email: user.email, isEmailVerified: user.isEmailVerified };
   }
 
   private generateToken(userId: string, email: string): string {
