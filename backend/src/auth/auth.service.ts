@@ -54,7 +54,18 @@ export class AuthService {
     };
   }
 
-  // Mock OAuth login with predefined test users
+  // Real OAuth login
+  async oauthLogin(profile: { email: string; name: string; googleId?: string; facebookId?: string }) {
+    const user = await this.usersService.findOrCreateOAuthUser(profile);
+    const token = this.generateToken(user._id.toString(), user.email);
+
+    return {
+      user: { id: user._id, name: user.name, email: user.email, isEmailVerified: true },
+      accessToken: token,
+    };
+  }
+
+  // Mock OAuth login for Facebook (temporary)
   async mockOAuthLogin(provider: 'google' | 'facebook') {
     const mockUsers = {
       google: {
