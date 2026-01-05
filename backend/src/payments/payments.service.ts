@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
+import { OrdersService } from '../orders/orders.service';
 
 @Injectable()
 export class PaymentsService {
   private stripe: Stripe;
 
-  constructor(private config: ConfigService) {
+  constructor(
+    private config: ConfigService,
+    private ordersService: OrdersService,
+  ) {
     this.stripe = new Stripe(config.get('STRIPE_SECRET_KEY') || '', {
       apiVersion: '2025-12-15.clover',
     });
@@ -34,15 +38,30 @@ export class PaymentsService {
       cancel_url: `${frontendUrl}/payment/cancel`,
       metadata: {
         userId,
-        items: JSON.stringify(items.map((i) => ({ productId: i.productId, quantity: i.quantity }))),
       },
+    });
+
+    // Create order with pending status
+    await this.ordersService.create({
+      userId,
+      items,
+      stripeSessionId: session.id,
     });
 
     return { sessionId: session.id, url: session.url };
   }
 
   async getSession(sessionId: string) {
-    return this.stripe.checkout.sessions.retrieve(sessionId);
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+
+    // Update order status if payment completed
+    if (session.payment_status === 'paid') {
+      await this.ordersService.markAsPaid(sessionId, session.payment_intent as string);
+    }
+
+    return {
+      status: session.payment_status,
+      customerEmail: session.customer_details?.email,
+    };
   }
 }
-
