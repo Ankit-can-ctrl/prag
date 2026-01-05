@@ -23,6 +23,18 @@ export class AuthController {
     return this.authService.verifyEmail(token);
   }
 
+  // Mock Google login - uses predefined test user
+  @Get('google')
+  async googleLogin() {
+    return this.authService.mockOAuthLogin('google');
+  }
+
+  // Mock Facebook login - uses predefined test user
+  @Get('facebook')
+  async facebookLogin() {
+    return this.authService.mockOAuthLogin('facebook');
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('profile')
   getProfile(@Request() req: any) {

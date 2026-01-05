@@ -16,7 +16,6 @@ export class AuthService {
   async signup(dto: SignupDto) {
     const user = await this.usersService.create(dto);
 
-    // Send verification email
     try {
       await this.emailService.sendVerificationEmail(user.email, user.verificationToken);
     } catch (error) {
@@ -38,6 +37,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (!user.password) {
+      throw new BadRequestException('Please login with Google or Facebook');
+    }
+
     const isValid = await this.usersService.comparePassword(dto.password, user.password);
     if (!isValid) {
       throw new UnauthorizedException('Invalid credentials');
@@ -51,12 +54,36 @@ export class AuthService {
     };
   }
 
+  // Mock OAuth login with predefined test users
+  async mockOAuthLogin(provider: 'google' | 'facebook') {
+    const mockUsers = {
+      google: {
+        email: 'testuser.google@demo.com',
+        name: 'Google Test User',
+        googleId: 'google-123456',
+      },
+      facebook: {
+        email: 'testuser.facebook@demo.com',
+        name: 'Facebook Test User',
+        facebookId: 'facebook-123456',
+      },
+    };
+
+    const mockUser = mockUsers[provider];
+    const user = await this.usersService.findOrCreateOAuthUser(mockUser);
+    const token = this.generateToken(user._id.toString(), user.email);
+
+    return {
+      user: { id: user._id, name: user.name, email: user.email, isEmailVerified: true },
+      accessToken: token,
+    };
+  }
+
   async verifyEmail(token: string) {
     const user = await this.usersService.verifyEmail(token);
     if (!user) {
       throw new BadRequestException('Invalid or expired verification token');
     }
-
     return { message: 'Email verified successfully' };
   }
 

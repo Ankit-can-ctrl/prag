@@ -51,4 +51,35 @@ export class UsersService {
   async comparePassword(password: string, hash: string): Promise<boolean> {
     return bcrypt.compare(password, hash);
   }
+
+  async findOrCreateOAuthUser(profile: {
+    email: string;
+    name: string;
+    googleId?: string;
+    facebookId?: string;
+  }): Promise<UserDocument> {
+    let user = await this.findByEmail(profile.email);
+
+    if (user) {
+      if (profile.googleId && !user.googleId) {
+        user.googleId = profile.googleId;
+        await user.save();
+      }
+      if (profile.facebookId && !user.facebookId) {
+        user.facebookId = profile.facebookId;
+        await user.save();
+      }
+      return user;
+    }
+
+    const newUser = new this.userModel({
+      email: profile.email,
+      name: profile.name,
+      googleId: profile.googleId,
+      facebookId: profile.facebookId,
+      isEmailVerified: true,
+    });
+
+    return newUser.save();
+  }
 }
